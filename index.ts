@@ -79,14 +79,35 @@ async function fetchSpaces(): Promise<any[]> {
 }
 
 async function fetchThemes(space: any) {
-  const themesResult: any = await client.query({
-    query: themesQuery,
-    variables: {
-      space: space.id,
-    },
-  });
+  const themes: any[] = [];
+  let hasMore = true;
+  let cursor: string | null = null;
 
-  const themes = themesResult.data.themes.themes;
+  while (hasMore) {
+    const result: any = await client.query({
+      query: themesQuery,
+      variables: {
+        space: space.id,
+        cursor,
+      },
+    });
+
+    if (result.errors) {
+      console.error(
+        "Unable to fetch themes",
+        JSON.stringify(result.errors, null, "  ")
+      );
+      process.exit(-1);
+    }
+
+    cursor = result.data.themes.cursor;
+    hasMore = result.data.themes.hasMore;
+
+    for (const theme of result.data.themes.themes) {
+      themes.push(theme);
+    }
+  }
+
   return themes;
 }
 
@@ -209,6 +230,15 @@ async function run() {
     .map((s: string) => s.trim());
   const themesToMove = themes.filter((t: any) =>
     themeIdsToMove.includes(t.number)
+  );
+
+  console.log(
+    "Will move",
+    themesToMove.length,
+    "themes from",
+    fromSpace.name,
+    "to",
+    toSpace.name
   );
 
   const workItemsByTheme = themesToMove.reduce(

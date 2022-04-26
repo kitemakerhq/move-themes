@@ -1,8 +1,8 @@
 import gql from "graphql-tag";
 
 export const themesQuery = gql`
-  query Themes($space: ID!) {
-    themes(spaceId: $space) {
+  query Themes($space: ID!, $cursor: String) {
+    themes(spaceId: $space, cursor: $cursor, count: 50) {
       themes {
         id
         number
@@ -26,6 +26,8 @@ export const themesQuery = gql`
           }
         }
       }
+      cursor
+      hasMore
     }
   }
 `;
