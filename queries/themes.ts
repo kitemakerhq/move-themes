@@ -5,6 +5,7 @@ export const themesQuery = gql`
     themes(spaceId: $space, cursor: $cursor, count: 50) {
       themes {
         id
+        sort
         number
         labels {
           id
@@ -13,6 +14,8 @@ export const themesQuery = gql`
         }
         workItems {
           id
+          number
+          sort
           labels {
             id
             name

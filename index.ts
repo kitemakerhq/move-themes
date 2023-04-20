@@ -7,7 +7,7 @@ import { setContext } from "apollo-link-context";
 import { HttpLink } from "apollo-link-http";
 import commandLineArgs from "command-line-args";
 import "cross-fetch/polyfill";
-import { uniqBy } from "lodash";
+import { sortBy, uniqBy } from "lodash";
 import {
   addLabelsToThemeMutation,
   addLabelsToWorkItemMutation,
@@ -108,7 +108,7 @@ async function fetchThemes(space: any) {
     }
   }
 
-  return themes;
+  return sortBy(themes, (t) => t.sort);
 }
 
 async function createLabelsIfNeeded(to: any, labels: any[]): Promise<any> {
@@ -138,23 +138,30 @@ async function createLabelsIfNeeded(to: any, labels: any[]): Promise<any> {
   return result;
 }
 
-async function moveThemes(themes: any, to: any) {
+async function moveThemes(themes: any, from: any, to: any) {
   const labels = await createLabelsIfNeeded(
     to,
     themes.flatMap((t: any) => t.labels)
   );
 
+  console.log("THEMES:");
+
   for (const theme of themes) {
     const labelNames: string[] = theme.labels.map((l: any) => l.name);
     const labelIds = labelNames.map((name) => labels[name]);
 
-    await client.mutate({
+    const result = await client.mutate({
       mutation: moveThemeMutation,
       variables: {
         id: theme.id,
         space: to.id,
       },
     });
+
+    console.log(
+      `${from.key}-${theme.number} -> ${to.key}-${result.data.editTheme.theme.number}`
+    );
+
     if (labelIds.length) {
       await client.mutate({
         mutation: addLabelsToThemeMutation,
@@ -167,11 +174,13 @@ async function moveThemes(themes: any, to: any) {
   }
 }
 
-async function moveWorkItems(workItems: any, to: any) {
+async function moveWorkItems(workItems: any, from: any, to: any) {
   const labels = await createLabelsIfNeeded(
     to,
     workItems.flatMap((w: any) => w.labels)
   );
+
+  console.log("WORK ITEMS:");
 
   for (const workItem of workItems) {
     const labelNames: string[] = workItem.labels.map((l: any) => l.name);
@@ -179,7 +188,7 @@ async function moveWorkItems(workItems: any, to: any) {
     const statusName = workItem.status.name;
     const statusType = workItem.status.type;
 
-    await client.mutate({
+    const result = await client.mutate({
       mutation: moveWorkItemMutation,
       variables: {
         id: workItem.id,
@@ -194,6 +203,11 @@ async function moveWorkItems(workItems: any, to: any) {
           to.statuses.find((status: any) => status.type === "TODO"),
       },
     });
+
+    console.log(
+      `${from.key}-${workItem.number} -> ${to.key}-${result.data.editWorkItem.workItem.number}`
+    );
+
     if (labelIds.length) {
       await client.mutate({
         mutation: addLabelsToWorkItemMutation,
@@ -248,14 +262,17 @@ async function run() {
     },
     {}
   );
-  await moveThemes(themesToMove, toSpace);
+  await moveThemes(themesToMove, fromSpace, toSpace);
 
-  const workItemsToMove = uniqBy(
-    themesToMove.flatMap((t: any) => t.workItems),
-    (w: any) => w.id
+  const workItemsToMove = sortBy(
+    uniqBy(
+      themesToMove.flatMap((t: any) => t.workItems),
+      (w: any) => w.id
+    ),
+    (w) => w.sort
   );
 
-  await moveWorkItems(workItemsToMove, toSpace);
+  await moveWorkItems(workItemsToMove, fromSpace, toSpace);
 
   for (const themeId in workItemsByTheme) {
     await client.mutate({
